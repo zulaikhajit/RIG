@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Upload, Activity, FileImage, AlertCircle } from "lucide-react";
-
+import { analyzeXRay, segmentCT, segmentMRI } from "../services/api";
 // Mock Components (replace with your actual components)
 const ImageUploader = ({ onFileSelect }) => {
   const [preview, setPreview] = useState(null);
@@ -116,23 +116,55 @@ function Dashboard() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [report, setReport] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [error, setError] = useState(null);
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     if (selectedFile && selectedType) {
       setIsAnalyzing(true);
-      // Simulate API call
-      setTimeout(() => {
+      setError(null);
+      setReport(null);
+
+      try {
+        let response;
+        if (selectedType === "MRI") {
+          response = await segmentMRI(selectedFile);
+        } else if (selectedType === "CT Scan") {
+          response = await segmentCT(selectedFile);
+        } else {
+          // Defaults to X-Ray
+          response = await analyzeXRay(selectedFile);
+        }
+
+        // Transform API response to match expected format
+        const report = {
+          diagnosis:
+            response.diagnosis || response.result || "Analysis complete",
+          confidence: response.confidence || response.probability || "95%",
+          additionalInfo: response.insights ||
+            response.conditions ||
+            response.findings || ["Analysis completed successfully"],
+        };
+
+        setReport(report);
+      } catch (error) {
+        console.error("API Error:", error);
+        let errorMessage = error.message;
+
+        // Handle network errors
+        if (error.name === "TypeError" && error.message.includes("fetch")) {
+          errorMessage =
+            "Unable to connect to analysis server. Please check if the backend services are running.";
+        }
+
+        setError(errorMessage);
         setReport({
-          diagnosis: "No abnormality detected",
-          confidence: "98%",
-          additionalInfo: [
-            "Sample size: good",
-            "Artifact: none",
-            "Image quality: excellent",
-          ],
+          diagnosis: "Analysis failed",
+          confidence: "0%",
+          additionalInfo: [`Error: ${errorMessage}`],
         });
+      } finally {
         setIsAnalyzing(false);
-      }, 1500);
+      }
     }
   };
 
@@ -176,6 +208,25 @@ function Dashboard() {
             <span className="text-white">Analyze Image</span>
           )}
         </button>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 text-red-600">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                  />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-red-800">API Error</p>
+            </div>
+            <p className="text-sm text-red-700 mt-1">{error}</p>
+          </div>
+        )}
       </div>
 
       {/* Right Panel - Results */}
