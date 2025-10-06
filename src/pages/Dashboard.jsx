@@ -45,7 +45,7 @@ const ImageUploader = ({ onFileSelect }) => {
 };
 
 const TypeSelector = ({ selectedType, onTypeChange }) => {
-  const types = ["X-Ray", "CT Scan", "MRI", "Ultrasound"];
+  const types = ["X-Ray", "CT Scan", "MRI"];
 
   return (
     <div className="flex flex-wrap gap-3">
@@ -69,6 +69,11 @@ const TypeSelector = ({ selectedType, onTypeChange }) => {
 const ReportPanel = ({ report }) => {
   if (!report) return null;
 
+  // Extract lesion percentage for CT scans
+  const lesionPercentage = report.confidence.includes('% lesion coverage')
+    ? parseFloat(report.confidence.replace('% lesion coverage', ''))
+    : 0;
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
       <div className="flex items-center gap-2 mb-4">
@@ -76,17 +81,49 @@ const ReportPanel = ({ report }) => {
         <h3 className="text-xl font-bold text-gray-800">Analysis Report</h3>
       </div>
 
+      {/* Status Summary */}
+      <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+          <span className="text-sm font-medium text-green-800">
+            Analysis Complete - {report.diagnosis.includes("No abnormality") ? "Normal Findings" : "Findings Detected"}
+          </span>
+        </div>
+      </div>
+
       <div className="space-y-4">
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <p className="text-sm text-green-800 font-medium mb-1">Diagnosis</p>
+          <p className="text-sm text-green-800 font-medium mb-1">Primary Diagnosis</p>
           <p className="text-lg font-semibold text-green-900">
             {report.diagnosis}
           </p>
         </div>
 
+        {lesionPercentage > 0 && (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+            <p className="text-sm text-orange-800 font-medium mb-2">
+              Lesion Coverage Analysis
+            </p>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 bg-orange-100 rounded-full h-3">
+                <div
+                  className="bg-orange-500 h-3 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(lesionPercentage, 100)}%` }}
+                ></div>
+              </div>
+              <span className="text-sm font-semibold text-orange-900 min-w-[3rem]">
+                {lesionPercentage.toFixed(1)}%
+              </span>
+            </div>
+            <p className="text-xs text-orange-700 mt-1">
+              {lesionPercentage > 50 ? "Significant lesion coverage detected" : "Moderate lesion coverage"}
+            </p>
+          </div>
+        )}
+
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-sm text-blue-800 font-medium mb-1">
-            Confidence Level
+            {lesionPercentage > 0 ? "Coverage Details" : "Confidence Level"}
           </p>
           <p className="text-2xl font-bold text-blue-900">
             {report.confidence}
@@ -95,13 +132,13 @@ const ReportPanel = ({ report }) => {
 
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
           <p className="text-sm text-gray-700 font-medium mb-2">
-            Additional Information
+            Detailed Medical Report
           </p>
-          <ul className="space-y-1">
+          <ul className="space-y-2">
             {report.additionalInfo.map((info, idx) => (
-              <li key={idx} className="text-gray-600 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
-                {info}
+              <li key={idx} className="text-gray-600 flex items-start gap-2">
+                <span className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 flex-shrink-0"></span>
+                <span className="text-sm">{info}</span>
               </li>
             ))}
           </ul>
@@ -136,20 +173,47 @@ function Dashboard() {
         }
 
         // Transform API response to match expected format
-        const report = {
-          diagnosis:
-            response.diagnosis || response.result || "Analysis complete",
-          confidence: response.confidence || response.probability || "95%",
-          additionalInfo: response.insights ||
-            response.conditions ||
-            response.findings || ["Analysis completed successfully"],
-        };
+        let report;
+
+        if (selectedType === "CT Scan") {
+          // Handle CT Scan specific response format
+          report = {
+            diagnosis: response.report
+              ? response.report[0]
+              : "CT Analysis complete",
+            confidence: `${response.lesion_percentage || 0}% lesion coverage`,
+            additionalInfo: [
+              `Lesion Coverage: ${response.lesion_percentage || 0}%`,
+              `Lesion Voxels: ${response.lesion_voxels || 0}`,
+              ...(response.report || []).slice(1), // Add remaining report items
+            ],
+          };
+        } else if (selectedType === "MRI") {
+          // Handle MRI specific response format
+          report = {
+            diagnosis:
+              response.diagnosis || response.result || "MRI Analysis complete",
+            confidence: response.confidence || response.probability || "95%",
+            additionalInfo: response.insights ||
+              response.conditions ||
+              response.findings || ["MRI Analysis completed successfully"],
+          };
+        } else {
+          // Handle other API response formats
+          report = {
+            diagnosis:
+              response.diagnosis || response.result || "Analysis complete",
+            confidence: response.confidence || response.probability || "95%",
+            additionalInfo: response.insights ||
+              response.conditions ||
+              response.findings || ["Analysis completed successfully"],
+          };
+        }
 
         setReport(report);
       } catch (error) {
         console.error("API Error:", error);
         let errorMessage = error.message;
-
         // Handle network errors
         if (error.name === "TypeError" && error.message.includes("fetch")) {
           errorMessage =
