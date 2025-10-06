@@ -1,48 +1,7 @@
 import React, { useState } from "react";
-import { Upload, Activity, FileImage, AlertCircle } from "lucide-react";
+import { Upload, Activity, AlertCircle } from "lucide-react";
 import { analyzeXRay, segmentCT, segmentMRI } from "../services/api";
-// Mock Components (replace with your actual components)
-const ImageUploader = ({ onFileSelect }) => {
-  const [preview, setPreview] = useState(null);
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      onFileSelect(file);
-      const reader = new FileReader();
-      reader.onloadend = () => setPreview(reader.result);
-      reader.readAsDataURL(file);
-    }
-  };
-
-  return (
-    <div className="w-full">
-      <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-blue-300 rounded-lg cursor-pointer bg-blue-50 hover:bg-blue-100 transition-colors">
-        {preview ? (
-          <img
-            src={preview}
-            alt="Preview"
-            className="h-full w-full object-contain p-4"
-          />
-        ) : (
-          <div className="flex flex-col items-center justify-center pt-5 pb-6">
-            <Upload className="w-12 h-12 mb-3 text-blue-500" />
-            <p className="mb-2 text-sm text-gray-700 font-medium">
-              Click to upload or drag and drop
-            </p>
-            <p className="text-xs text-gray-500">PNG, JPG, DICOM (MAX. 10MB)</p>
-          </div>
-        )}
-        <input
-          type="file"
-          className="hidden"
-          onChange={handleFileChange}
-          accept="image/*"
-        />
-      </label>
-    </div>
-  );
-};
+import ImageUploader from "../components/ImageUploader";
 
 const TypeSelector = ({ selectedType, onTypeChange }) => {
   const types = ["X-Ray", "CT Scan", "MRI"];
@@ -70,8 +29,8 @@ const ReportPanel = ({ report }) => {
   if (!report) return null;
 
   // Extract lesion percentage for CT scans
-  const lesionPercentage = report.confidence.includes('% lesion coverage')
-    ? parseFloat(report.confidence.replace('% lesion coverage', ''))
+  const lesionPercentage = report.confidence.includes("% lesion coverage")
+    ? parseFloat(report.confidence.replace("% lesion coverage", ""))
     : 0;
 
   return (
@@ -86,14 +45,19 @@ const ReportPanel = ({ report }) => {
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-green-500 rounded-full"></div>
           <span className="text-sm font-medium text-green-800">
-            Analysis Complete - {report.diagnosis.includes("No abnormality") ? "Normal Findings" : "Findings Detected"}
+            Analysis Complete -{" "}
+            {report.diagnosis.includes("No abnormality")
+              ? "Normal Findings"
+              : "Findings Detected"}
           </span>
         </div>
       </div>
 
       <div className="space-y-4">
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <p className="text-sm text-green-800 font-medium mb-1">Primary Diagnosis</p>
+          <p className="text-sm text-green-800 font-medium mb-1">
+            Primary Diagnosis
+          </p>
           <p className="text-lg font-semibold text-green-900">
             {report.diagnosis}
           </p>
@@ -116,7 +80,9 @@ const ReportPanel = ({ report }) => {
               </span>
             </div>
             <p className="text-xs text-orange-700 mt-1">
-              {lesionPercentage > 50 ? "Significant lesion coverage detected" : "Moderate lesion coverage"}
+              {lesionPercentage > 50
+                ? "Significant lesion coverage detected"
+                : "Moderate lesion coverage"}
             </p>
           </div>
         )}
@@ -154,6 +120,15 @@ function Dashboard() {
   const [report, setReport] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState(null);
+  const [resetKey, setResetKey] = useState(0);
+
+  const handleTypeChange = (newType) => {
+    setSelectedType(newType);
+    setSelectedFile(null);
+    setReport(null);
+    setError(null);
+    setResetKey(prev => prev + 1); // Trigger reset for ImageUploader
+  };
 
   const handleAnalyze = async () => {
     if (selectedFile && selectedType) {
@@ -206,13 +181,16 @@ function Dashboard() {
           );
 
           report = {
-            diagnosis: `${topCondition[0].replace(/_/g, ' ')} - Primary Finding`,
+            diagnosis: `${topCondition[0].replace(
+              /_/g,
+              " "
+            )} - Primary Finding`,
             confidence: `${(topCondition[1] * 100).toFixed(1)}% confidence`,
             additionalInfo: Object.entries(conditions)
               .filter(([_, prob]) => prob > 0.01) // Show conditions with >1% probability to avoid very low probability noise
               .sort(([, a], [, b]) => b - a)
               .map(([condition, probability]) => {
-                const cleanCondition = condition.replace(/_/g, ' ');
+                const cleanCondition = condition.replace(/_/g, " ");
                 const percentage = (probability * 100).toFixed(1);
                 return `${cleanCondition}: ${percentage}%`;
               }),
@@ -251,7 +229,7 @@ function Dashboard() {
           </h3>
           <TypeSelector
             selectedType={selectedType}
-            onTypeChange={setSelectedType}
+            onTypeChange={handleTypeChange}
           />
         </div>
 
@@ -260,7 +238,10 @@ function Dashboard() {
             <Upload className="w-5 h-5 text-blue-600" />
             Upload Medical Image
           </h3>
-          <ImageUploader onFileSelect={setSelectedFile} />
+          <ImageUploader
+            onFileSelect={setSelectedFile}
+            reset={resetKey}
+          />
         </div>
         <button
           onClick={handleAnalyze}
