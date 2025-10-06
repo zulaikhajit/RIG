@@ -3,7 +3,7 @@ export async function segmentMRI(file) {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch("http://13.126.43.3:5002/segment_mri", {
+  const response = await fetch("http://13.202.19.4:5002/segment_mri", {
     method: "POST",
 
     body: formData,
@@ -24,7 +24,7 @@ export async function segmentCT(file) {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch("http://13.126.43.3:5001/segment", {
+  const response = await fetch("http://13.202.19.4:5001/segment", {
     method: "POST",
     body: formData,
   });
@@ -43,7 +43,7 @@ export async function analyzeXRay(file) {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch("http://13.126.43.3:5000/", {
+  const response = await fetch("http://13.202.19.4:5000/", {
     method: "POST",
     body: formData,
   });
