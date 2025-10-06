@@ -199,20 +199,28 @@ function Dashboard() {
               response.findings || ["MRI Analysis completed successfully"],
           };
         } else {
-          // Handle other API response formats
+          // Handle X-Ray specific response format (condition probabilities)
+          const conditions = response;
+          const topCondition = Object.entries(conditions).reduce((a, b) =>
+            conditions[a[0]] > conditions[b[0]] ? a : b
+          );
+
           report = {
-            diagnosis:
-              response.diagnosis || response.result || "Analysis complete",
-            confidence: response.confidence || response.probability || "95%",
-            additionalInfo: response.insights ||
-              response.conditions ||
-              response.findings || ["Analysis completed successfully"],
+            diagnosis: `${topCondition[0].replace(/_/g, ' ')} - Primary Finding`,
+            confidence: `${(topCondition[1] * 100).toFixed(1)}% confidence`,
+            additionalInfo: Object.entries(conditions)
+              .filter(([_, prob]) => prob > 0.01) // Show conditions with >1% probability to avoid very low probability noise
+              .sort(([, a], [, b]) => b - a)
+              .map(([condition, probability]) => {
+                const cleanCondition = condition.replace(/_/g, ' ');
+                const percentage = (probability * 100).toFixed(1);
+                return `${cleanCondition}: ${percentage}%`;
+              }),
           };
         }
 
         setReport(report);
       } catch (error) {
-        console.error("API Error:", error);
         let errorMessage = error.message;
         // Handle network errors
         if (error.name === "TypeError" && error.message.includes("fetch")) {
