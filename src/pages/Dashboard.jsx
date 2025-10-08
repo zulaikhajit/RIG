@@ -44,7 +44,10 @@ const ReportPanel = ({ report }) => {
               Medical Disclaimer
             </h4>
             <p className="text-sm text-yellow-700">
-              This AI analysis is for informational purposes only and should not be used for medical diagnosis or treatment decisions. Always consult with a qualified healthcare professional for proper medical evaluation and diagnosis.
+              This AI analysis is for informational purposes only and should not
+              be used for medical diagnosis or treatment decisions. Always
+              consult with a qualified healthcare professional for proper
+              medical evaluation and diagnosis.
             </p>
           </div>
         </div>
@@ -116,13 +119,25 @@ const ReportPanel = ({ report }) => {
             Detailed Medical Report
           </p>
           <ul className="space-y-2">
-            {report.additionalInfo.map((info, idx) => (
-              <li key={idx} className="text-gray-600 flex items-start gap-2">
-                <span className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 flex-shrink-0"></span>
-                <span className="text-sm">{info}</span>
-              </li>
-            ))}
+            {Array.isArray(report.additionalInfo) &&
+              report.additionalInfo.map((info, idx) => (
+                <li key={idx} className="text-gray-600 flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 flex-shrink-0"></span>
+                  <span className="text-sm">{info}</span>
+                </li>
+              ))}
           </ul>
+        </div>
+        <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-sm font-semibold text-yellow-800 mb-1">
+                Insights
+              </h4>
+              <p className="text-sm text-yellow-700">{report.insights}</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -142,7 +157,7 @@ function Dashboard() {
     setSelectedFile(null);
     setReport(null);
     setError(null);
-    setResetKey(prev => prev + 1); // Trigger reset for ImageUploader
+    setResetKey((prev) => prev + 1); // Trigger reset for ImageUploader
   };
 
   const handleAnalyze = async () => {
@@ -172,10 +187,13 @@ function Dashboard() {
               ? response.report[0]
               : "CT Analysis complete",
             confidence: `${response.lesion_percentage || 0}% lesion coverage`,
+            insights: response.insights || "No insights available",
             additionalInfo: [
               `Lesion Coverage: ${response.lesion_percentage || 0}%`,
               `Lesion Voxels: ${response.lesion_voxels || 0}`,
-              ...(response.report || []).slice(1), // Add remaining report items
+              ...(Array.isArray(response.report)
+                ? response.report.slice(1)
+                : []),
             ],
           };
         } else if (selectedType === "MRI") {
@@ -184,16 +202,21 @@ function Dashboard() {
             diagnosis:
               response.diagnosis || response.result || "MRI Analysis complete",
             confidence: response.confidence || response.probability || "95%",
-            additionalInfo: response.insights ||
-              response.conditions ||
-              response.findings || ["MRI Analysis completed successfully"],
+            insights: response.insights || "No additional insights available",
+            additionalInfo: Array.isArray(response.insights)
+              ? response.insights
+              : Array.isArray(response.conditions)
+              ? response.conditions
+              : Array.isArray(response.findings)
+              ? response.findings
+              : ["MRI Analysis completed successfully"],
           };
         } else {
           // Handle X-Ray specific response format (condition probabilities)
           const conditions = response;
-          const topCondition = Object.entries(conditions).reduce((a, b) =>
-            conditions[a[0]] > conditions[b[0]] ? a : b
-          );
+          const topCondition = Object.entries(conditions)
+            .filter(([key]) => key !== "detector_used" && key !== "insights")
+            .reduce((a, b) => (conditions[a[0]] > conditions[b[0]] ? a : b));
 
           report = {
             diagnosis: `${topCondition[0].replace(
@@ -201,8 +224,12 @@ function Dashboard() {
               " "
             )} - Primary Finding`,
             confidence: `${(topCondition[1] * 100).toFixed(1)}% confidence`,
+            insights: response.insights || "No additional insights available",
             additionalInfo: Object.entries(conditions)
-              .filter(([_, prob]) => prob > 0.01) // Show conditions with >1% probability to avoid very low probability noise
+              .filter(
+                ([key, prob]) =>
+                  key !== "detector_used" && key !== "insights" && prob > 0.01
+              )
               .sort(([, a], [, b]) => b - a)
               .map(([condition, probability]) => {
                 const cleanCondition = condition.replace(/_/g, " ");
@@ -253,10 +280,7 @@ function Dashboard() {
             <Upload className="w-5 h-5 text-blue-600" />
             Upload Medical Image
           </h3>
-          <ImageUploader
-            onFileSelect={setSelectedFile}
-            reset={resetKey}
-          />
+          <ImageUploader onFileSelect={setSelectedFile} reset={resetKey} />
         </div>
         <button
           onClick={handleAnalyze}
